@@ -41,6 +41,10 @@ int main(int argc, char* argv[])
 	player_rect.y = window_h / 2 - player_size / 2;
 
 
+	bool btn_pressed_up = false;
+	
+	const int speed = 10;
+
 	SDL_GetCurrentTime(&walltime_frame_beg);
 	while(!quit)
 	{
@@ -59,6 +63,15 @@ int main(int argc, char* argv[])
 					break;
 			}
 		}
+		const bool* keyboard = SDL_GetKeyboardState(NULL);
+		if (keyboard[SDL_SCANCODE_W])
+			player_rect.y -= speed;
+		if (keyboard[SDL_SCANCODE_S])
+			player_rect.y += speed;
+		if (keyboard[SDL_SCANCODE_A])
+			player_rect.x -= speed;
+		if (keyboard[SDL_SCANCODE_D])
+			player_rect.x += speed;
 
 
 		// clear screen
