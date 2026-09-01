@@ -34,11 +34,17 @@ int main(int argc, char* argv[])
 	int delay_type = 0;
 
 	float player_size = 40;
-	SDL_FRect player_rect;
-	player_rect.w = player_size;
-	player_rect.h = player_size;
-	player_rect.x = window_w / 2 - player_size / 2;
-	player_rect.y = window_h / 2 - player_size / 2;
+	SDL_FRect player_rect_1;
+	player_rect_1.w = player_size;
+	player_rect_1.h = player_size;
+	player_rect_1.x = window_w / 2 + player_size;
+	player_rect_1.y = window_h / 2 - player_size / 2;
+
+	SDL_FRect player_rect_2;
+	player_rect_2.w = player_size;
+	player_rect_2.h = player_size;
+	player_rect_2.x = window_w / 2;
+	player_rect_2.y = window_h / 2 - player_size / 2;
 
 
 	bool btn_pressed_up = false;
@@ -65,13 +71,22 @@ int main(int argc, char* argv[])
 		}
 		const bool* keyboard = SDL_GetKeyboardState(NULL);
 		if (keyboard[SDL_SCANCODE_W])
-			player_rect.y -= speed;
+			player_rect_1.y -= speed;
 		if (keyboard[SDL_SCANCODE_S])
-			player_rect.y += speed;
+			player_rect_1.y += speed;
 		if (keyboard[SDL_SCANCODE_A])
-			player_rect.x -= speed;
+			player_rect_1.x -= speed;
 		if (keyboard[SDL_SCANCODE_D])
-			player_rect.x += speed;
+			player_rect_1.x += speed;
+
+		if (keyboard[SDL_SCANCODE_UP])
+			player_rect_2.y -= speed;
+		if (keyboard[SDL_SCANCODE_DOWN])
+			player_rect_2.y += speed;
+		if (keyboard[SDL_SCANCODE_LEFT])
+			player_rect_2.x -= speed;
+		if (keyboard[SDL_SCANCODE_RIGHT])
+			player_rect_2.x += speed;
 
 
 		// clear screen
@@ -81,7 +96,10 @@ int main(int argc, char* argv[])
 		SDL_RenderClear(renderer);
 		
 		SDL_SetRenderDrawColor(renderer, 0x3C, 0x63, 0xFF, 0XFF);
-		SDL_RenderFillRect(renderer, &player_rect);
+		SDL_RenderFillRect(renderer, &player_rect_1);
+
+		SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0xB7, 0xFF);
+		SDL_RenderFillRect(renderer, &player_rect_2);
 
 		SDL_GetCurrentTime(&walltime_work_end);
 		time_elapsed_work = walltime_work_end - walltime_frame_beg;
