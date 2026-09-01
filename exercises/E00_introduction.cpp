@@ -2,8 +2,8 @@
 
 int main(int argc, char* argv[])
 {
-	float window_w = 800;
-	float window_h = 600;
+	float window_w = 1600;
+	float window_h = 1200;
 	int target_framerate_ms = 1000 / 60;       // 16 milliseconds
 	int target_framerate_ns = 1000000000 / 60; // 16666666 nanoseconds
 
@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
 	// increase the zoom to make debug text more legible
 	// (ie, on the class projector, we will usually use 2)
 	{
-		float zoom = 1;
+		float zoom = 2;
 		window_w /= zoom;
 		window_h /= zoom;
 		SDL_SetRenderScale(renderer, zoom, zoom);
