@@ -142,19 +142,6 @@ int main(void)
 					break;
 
 				case SDL_EVENT_KEY_UP:
-					if(event.key.key == SDLK_W)
-						context.btn_pressed_up = event.key.down;
-					if(event.key.key == SDLK_A)
-						context.btn_pressed_left = event.key.down;
-					if(event.key.key == SDLK_S)
-						context.btn_pressed_down = event.key.down;
-					if(event.key.key == SDLK_D)
-						context.btn_pressed_right = event.key.down;
-					if(event.key.key == SDLK_SPACE) {
-						game_state.hasShot = false;
-						context.btn_pressed_space = event.key.down;
-					}
-					break;
 				case SDL_EVENT_KEY_DOWN:
 					if(event.key.key == SDLK_W)
 						context.btn_pressed_up = event.key.down;
@@ -165,8 +152,8 @@ int main(void)
 					if(event.key.key == SDLK_D)
 						context.btn_pressed_right = event.key.down;
 					if(event.key.key == SDLK_SPACE) {
-						game_state.hasShot = event.key.down;
-						context.btn_pressed_space = event.key.down;
+						context.btn_pressed_space = event.key.down && !game_state.hasShot;
+						game_state.hasShot = event.key.down && !game_state.hasShot;
 					}
 			}
 		}
