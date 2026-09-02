@@ -4,6 +4,7 @@
 
 #include <SDL3/SDL.h>
 #include <stb_image.h>
+#include <iostream>
 
 
 // simple macro to determine if an SDL call was successful, and print diagnostics if there was a problem
@@ -25,6 +26,8 @@
 #define NS_TO_SECONDS(x) ((float)(x)/(float)1000000000) // converts nanoseconds to seconds (in floating point precision)
 
 const int NUM_ASTEROIDS = 10;
+const int NUM_PROJECTILES = 20;
+const int PROJECTILE_OFFSET = 20;
 const int DEBUG_CIRCLE_POINT_COUNT = 8;
 const float TAU = 6.2831f; // PI*2
 
@@ -40,6 +43,7 @@ struct E01_EngineContext
 	bool btn_pressed_down  = false;
 	bool btn_pressed_left  = false;
 	bool btn_pressed_right = false;
+	bool btn_pressed_space = false;
 };
 
 struct E01_Entity
@@ -64,12 +68,17 @@ struct E01_DesignParams
 	float asteroid_speed_range = entity_size_world * 4;
 	int   asteroid_sprite_coords_x = 0;
 	int   asteroid_sprite_coords_y = 4;
+	float project_speed = entity_size_world * 3;
+	int	  projectile_sprite_coords_x = 4;
+	int	  projectile_sprite_coords_y = 3;
 };
 
 struct E01_GameState
 {
 	E01_Entity player;
 	E01_Entity asteroids[NUM_ASTEROIDS];
+	E01_Entity projectiles[NUM_PROJECTILES];
+	bool hasShot;
 
 	SDL_Texture* texture_atlas;
 };
@@ -132,6 +141,18 @@ int main(void)
 					break;
 
 				case SDL_EVENT_KEY_UP:
+					if(event.key.key == SDLK_W)
+						context.btn_pressed_up = event.key.down;
+					if(event.key.key == SDLK_A)
+						context.btn_pressed_left = event.key.down;
+					if(event.key.key == SDLK_S)
+						context.btn_pressed_down = event.key.down;
+					if(event.key.key == SDLK_D)
+						context.btn_pressed_right = event.key.down;
+					if(event.key.key == SDLK_SPACE) {
+						game_state.hasShot = false;
+						context.btn_pressed_space = event.key.down;
+					break;
 				case SDL_EVENT_KEY_DOWN:
 					if(event.key.key == SDLK_W)
 						context.btn_pressed_up = event.key.down;
@@ -141,6 +162,10 @@ int main(void)
 						context.btn_pressed_down = event.key.down;
 					if(event.key.key == SDLK_D)
 						context.btn_pressed_right = event.key.down;
+					if(event.key.key == SDLK_SPACE) {
+						game_state.hasShot = event.key.down;
+						context.btn_pressed_space = event.key.down;
+					}
 			}
 		}
 
@@ -288,6 +313,49 @@ static void init(E01_EngineContext* context, E01_DesignParams* params, E01_GameS
 			asteroid_curr->texture_rect.y = params->entity_size_texture * params->asteroid_sprite_coords_y;
 		}
 	}
+
+	// projectiles
+	{
+		for(int i = 0; i < NUM_PROJECTILES; ++i)
+		{
+			E01_Entity* projectile_curr = &game_state->projectiles[i];
+
+			projectile_curr->texture_atlas = game_state->texture_atlas;
+			projectile_curr->size = params->entity_size_world;
+			projectile_curr->position.x = -params->entity_size_world - PROJECTILE_OFFSET;
+			projectile_curr->position.y = 0;
+			projectile_curr->velocity = params->project_speed;
+			projectile_curr->rect.w = projectile_curr->size;
+			projectile_curr->rect.h = projectile_curr->size;
+
+			projectile_curr->texture_rect.w = params->entity_size_texture;
+			projectile_curr->texture_rect.h = params->entity_size_texture;
+			projectile_curr->texture_rect.x = params->entity_size_texture * params->projectile_sprite_coords_x;
+			projectile_curr->texture_rect.y = params->entity_size_texture * params->projectile_sprite_coords_y;
+		}
+	}
+}
+
+static bool isProjectileActive(E01_Entity* projectile) {
+	return projectile->position.x >= 0;
+}
+
+static void createProjectile(E01_DesignParams* params, E01_GameState* game_state) {
+	int projectile_index = -1;
+	for(int i = 0; i < NUM_PROJECTILES; ++i)
+	{
+		if (!isProjectileActive(&game_state->projectiles[i])) 
+		{
+			projectile_index = i;
+			break;
+		}
+	}
+	if (projectile_index == -1) return;
+	printf("%d", projectile_index);
+	
+	E01_Entity* projectile_curr = &game_state->projectiles[projectile_index];	
+	projectile_curr->position.x = game_state->player.position.x;
+	projectile_curr->position.y = game_state->player.position.y;
 }
 
 static void update(E01_EngineContext* context, E01_DesignParams* params, E01_GameState* game_state)
@@ -303,6 +371,11 @@ static void update(E01_EngineContext* context, E01_DesignParams* params, E01_Gam
 			entity_player->position.x -= context->delta * entity_player->velocity;
 		if(context->btn_pressed_right)
 			entity_player->position.x += context->delta * entity_player->velocity;
+		if(context->btn_pressed_space) {
+			createProjectile(params, game_state);
+		}
+			
+		
 
 		entity_player->rect.x = entity_player->position.x;
 		entity_player->rect.y = entity_player->position.y;
@@ -347,5 +420,38 @@ static void update(E01_EngineContext* context, E01_DesignParams* params, E01_Gam
 				&asteroid_curr->rect
 			);
 		}
+	}
+
+	// projectiles
+	{
+		const float collision_distance_sq = 64*64;
+
+		for(int i = 0; i < NUM_PROJECTILES; ++i)
+		{
+			
+			E01_Entity* projectile_curr = &game_state->projectiles[i];
+			if (!isProjectileActive(projectile_curr)) continue;
+			projectile_curr->position.y -= context->delta * projectile_curr->velocity;
+
+			projectile_curr->rect.x = projectile_curr->position.x;
+			projectile_curr->rect.y = projectile_curr->position.y;
+
+			/*
+			Don't think we need to recolor the projectiles
+			float distance_sq = distance_between_sq(projectile_curr->position, game_state->player.position);
+			if(distance_sq < collision_distance_sq)
+				SDL_SetTextureColorMod(projectile_curr->texture_atlas, 0xFF, 0x00, 0x00);
+			else
+				SDL_SetTextureColorMod(projectile_curr->texture_atlas, 0xFF, 0xFF, 0xFF);
+			*/
+			
+			SDL_RenderTexture(
+				context->renderer,
+				projectile_curr->texture_atlas,
+				&projectile_curr->texture_rect,
+				&projectile_curr->rect
+			);
+		}
+		 
 	}
 }
