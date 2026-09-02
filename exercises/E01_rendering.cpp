@@ -152,6 +152,7 @@ int main(void)
 					if(event.key.key == SDLK_SPACE) {
 						game_state.hasShot = false;
 						context.btn_pressed_space = event.key.down;
+					}
 					break;
 				case SDL_EVENT_KEY_DOWN:
 					if(event.key.key == SDLK_W)
