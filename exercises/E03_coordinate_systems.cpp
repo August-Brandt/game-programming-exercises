@@ -1,4 +1,5 @@
 #define ENABLE_DIAGNOSTICS
+#define NUM_TILES 60
 
 #include <itu_engine.hpp>
 
@@ -61,7 +62,7 @@ static void game_init(EngineContext* context, E03_GameState* state)
 	// TODO allocate space for tile info (when we'll load those from file)
 
 	// texture atlases
-	state->atlas = itu_resources_texture_create(context, "data/kenney/simpleSpace_tilesheet_2.png", SDL_SCALEMODE_LINEAR);
+	state->atlas = itu_resources_texture_create(context, "data/kenney/tiny_dungeon_packed.png", SDL_SCALEMODE_NEAREST);
 	state->bg    = itu_resources_texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
 }
 
@@ -87,7 +88,7 @@ static void game_reset(EngineContext* context, E03_GameState* state)
 		itu_lib_sprite_init(
 			&state->player->sprite,
 			state->atlas,
-			itu_lib_sprite_get_source_rect(0, 1, 128, 128)
+			itu_lib_sprite_get_source_rect(0, 7, 16, 16)
 		);
 
 		// raise sprite a bit, so that the position concides with the center of the image
@@ -111,6 +112,8 @@ static void game_update(EngineContext* context, E03_GameState* state)
 		if(context->btn_isdown_right)
 			mov.x += 1;
 	
+
+		SDL_GetMouseState(&context->mouse_pos.x, &context->mouse_pos.y);
 		entity->transform.position = entity->transform.position + mov * (player_speed * context->delta);
 
 		// camera follows player
@@ -143,7 +146,7 @@ int main(void)
 {
 	EngineConfig config;
 	config.application_name = "ES03 - Coordinate Systems";
-	config.texture_pixels_per_unit = 128;
+	config.texture_pixels_per_unit = 16;
 	config.camera_pixel_per_unit = 128;
 	config.step_per_second_fluid = 60;
 
@@ -219,6 +222,11 @@ int main(void)
 			SDL_RenderDebugTextFormat(context.renderer, 10, 30, "[TAB] reset ");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 40, "[F1]  render textures   %s", DEBUG_render_textures   ? " ON" : "OFF");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 50, "[F2]  render outlines   %s", DEBUG_render_outlines   ? " ON" : "OFF");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 60, "Mouse on screen: %6.2f, %6.2f", context.mouse_pos.x, context.mouse_pos.y);
+			vec2f p_mouse_world = itu_lib_context_point_screen_to_global(&context, context.mouse_pos);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 70, "Mouse in world: %6.2f, %6.2f", p_mouse_world.x, p_mouse_world.y);
+			vec2f p_mouse_camera = itu_lib_context_point_screen_to_window(&context, context.mouse_pos);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 80, "Mouse in camera: %6.2f, %6.2f", p_mouse_camera.x, p_mouse_camera.y);
 		}
 #endif
 		// render
