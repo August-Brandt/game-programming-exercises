@@ -13,6 +13,13 @@ struct E03_Entity
 	Transform2D transform;
 };
 
+struct E03_TileMap
+{
+	Sprite tileset[NUM_TILES];
+	u_int8_t pattern[128][128];
+	vec2f pos;
+};
+
 struct E03_GameState
 {
 	// shortcut references
@@ -21,10 +28,11 @@ struct E03_GameState
 	// game-allocated memory
 	E03_Entity* entities;
 	int entities_alive_count;
+	E03_TileMap* tilemap;
 
 	// SDL-allocated structures
 	SDL_Texture* atlas;
-	SDL_Texture* bg;
+	// SDL_Texture* bg;
 };
 
 static E03_Entity* entity_create(E03_GameState* state)
@@ -60,26 +68,69 @@ static void game_init(EngineContext* context, E03_GameState* state)
 	SDL_assert(state->entities);
 
 	// TODO allocate space for tile info (when we'll load those from file)
+	state->tilemap = (E03_TileMap*)SDL_calloc(1, sizeof(E03_TileMap));
 
 	// texture atlases
 	state->atlas = itu_resources_texture_create(context, "data/kenney/tiny_dungeon_packed.png", SDL_SCALEMODE_NEAREST);
-	state->bg    = itu_resources_texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
+	// state->bg    = itu_resources_texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
+}
+
+static void load_tileset(EngineContext* context, E03_GameState* state)
+{
+	for (int i = 0; i < 12; ++i)
+	{
+		for (int j = 0; j < 5; ++j) 
+		{
+			Sprite* sprite = &state->tilemap->tileset[j*12+i];
+			itu_lib_sprite_init(
+				sprite,
+				state->atlas,
+				itu_lib_sprite_get_source_rect(i, j, 16, 16)
+			);
+			sprite->pivot.x = 8.0f;
+			sprite->pivot.y = 8.0f;
+		}
+	}
+}
+
+static void create_pattern(E03_GameState* state) 
+{
+	// Corners
+	state->tilemap->pattern[0][0] = 16;
+	state->tilemap->pattern[0][127] = 4;
+	state->tilemap->pattern[127][0] = 17;
+	state->tilemap->pattern[127][127] = 5;
+
+	// Edges
+	for (int i = 1; i < 127; ++i)
+	{
+		state->tilemap->pattern[i][0] = 2;
+		state->tilemap->pattern[i][127] = 26;
+		state->tilemap->pattern[0][i] = 15;
+		state->tilemap->pattern[127][i] = 13;
+	}
+
+	// Internal
+	for (int i = 1; i < 127; ++i)
+	{
+		for (int j = 1; j < 127; ++j) 
+		{
+			if (sin(i*j) > 0.95) 
+				state->tilemap->pattern[i][j] = 12;
+			else
+				state->tilemap->pattern[i][j] = 0;
+		}
+	}
 }
 
 static void game_reset(EngineContext* context, E03_GameState* state)
 {
 	state->entities_alive_count = 0;
-	// entities
-	{
-		E03_Entity* bg = entity_create(state);
-		SDL_FRect sprite_rect = SDL_FRect{ 0, 0, 1024, 1024};
-		itu_lib_sprite_init(
-			&bg->sprite,
-			state->bg,
-			itu_lib_sprite_get_source_rect(0, 0, 1024, 1024)
-		);
-		bg->transform.scale = VEC2F_ONE;
-	}
+
+	load_tileset(context, state);
+	create_pattern(state);
+	state->tilemap->pos.x = 0;
+	state->tilemap->pos.y = 0;
 
 	{
 		state->player = entity_create(state);
@@ -99,7 +150,7 @@ static void game_reset(EngineContext* context, E03_GameState* state)
 static void game_update(EngineContext* context, E03_GameState* state)
 {
 	{
-		const float player_speed = 1;
+		const float player_speed = 10;
 
 		E03_Entity* entity = state->player;
 		vec2f mov = { 0 };
@@ -121,8 +172,35 @@ static void game_update(EngineContext* context, E03_GameState* state)
 	}
 }
 
+static void render_tileset(EngineContext* context, E03_GameState* state)
+{
+	for (int i = 0; i < 128; ++i)
+	{
+		for (int j = 0; j < 128; ++j)
+		{
+			vec2f position;
+			position.x = i;
+			position.y = j;
+
+			Transform2D transform;
+			// transform.position.x = i;
+			// transform.position.y = j;
+			transform.position = position;
+			transform.scale = VEC2F_ONE;
+			transform.rotation = 0.0f;
+			if(DEBUG_render_textures)
+				itu_lib_sprite_render(
+					context, 
+					&state->tilemap->tileset[state->tilemap->pattern[i][j]],
+					&transform
+				);
+		}
+	}
+}
+
 static void game_render(EngineContext* context, E03_GameState* state)
 {
+	render_tileset(context, state);
 	for(int i = 0; i < state->entities_alive_count; ++i)
 	{
 		E03_Entity* entity = &state->entities[i];
@@ -147,7 +225,7 @@ int main(void)
 	EngineConfig config;
 	config.application_name = "ES03 - Coordinate Systems";
 	config.texture_pixels_per_unit = 16;
-	config.camera_pixel_per_unit = 128;
+	config.camera_pixel_per_unit = 64;
 	config.step_per_second_fluid = 60;
 
 	bool quit = false;
