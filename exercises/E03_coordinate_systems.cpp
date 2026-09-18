@@ -1,11 +1,14 @@
 #define ENABLE_DIAGNOSTICS
-#define NUM_TILES 60
 
 #include <itu_engine.hpp>
 
 bool DEBUG_render_textures = true;
 bool DEBUG_render_outlines = true;
 const int ENTITY_COUNT = 4096;
+const int MAP_WIDTH = 16;
+const int MAP_HEIGHT = 16;
+const int TILESHEET_WIDTH = 12;
+const int TILESHEET_HEIGHT = 5;
 
 struct E03_Entity
 {
@@ -15,8 +18,8 @@ struct E03_Entity
 
 struct E03_TileMap
 {
-	Sprite tileset[NUM_TILES];
-	u_int8_t pattern[128][128];
+	Sprite tileset[TILESHEET_WIDTH * TILESHEET_HEIGHT];
+	u_int8_t pattern[MAP_WIDTH][MAP_HEIGHT];
 	vec2f pos;
 };
 
@@ -77,9 +80,9 @@ static void game_init(EngineContext* context, E03_GameState* state)
 
 static void load_tileset(EngineContext* context, E03_GameState* state)
 {
-	for (int i = 0; i < 12; ++i)
+	for (int i = 0; i < TILESHEET_WIDTH; ++i)
 	{
-		for (int j = 0; j < 5; ++j) 
+		for (int j = 0; j < TILESHEET_HEIGHT; ++j) 
 		{
 			Sprite* sprite = &state->tilemap->tileset[j*12+i];
 			itu_lib_sprite_init(
@@ -87,8 +90,6 @@ static void load_tileset(EngineContext* context, E03_GameState* state)
 				state->atlas,
 				itu_lib_sprite_get_source_rect(i, j, 16, 16)
 			);
-			sprite->pivot.x = 8.0f;
-			sprite->pivot.y = 8.0f;
 		}
 	}
 }
@@ -97,23 +98,27 @@ static void create_pattern(E03_GameState* state)
 {
 	// Corners
 	state->tilemap->pattern[0][0] = 16;
-	state->tilemap->pattern[0][127] = 4;
-	state->tilemap->pattern[127][0] = 17;
-	state->tilemap->pattern[127][127] = 5;
+	state->tilemap->pattern[0][MAP_HEIGHT-1] = 4;
+	state->tilemap->pattern[MAP_WIDTH-1][0] = 17;
+	state->tilemap->pattern[MAP_WIDTH-1][MAP_HEIGHT-1] = 5;
 
 	// Edges
-	for (int i = 1; i < 127; ++i)
+	for (int i = 1; i < MAP_WIDTH-1; ++i)
 	{
 		state->tilemap->pattern[i][0] = 2;
-		state->tilemap->pattern[i][127] = 26;
+		state->tilemap->pattern[i][MAP_HEIGHT-1] = 26;
+	}
+	
+	for (int i = 1; i < MAP_HEIGHT-1; ++i)
+	{
 		state->tilemap->pattern[0][i] = 15;
-		state->tilemap->pattern[127][i] = 13;
+		state->tilemap->pattern[MAP_WIDTH-1][i] = 13;
 	}
 
 	// Internal
-	for (int i = 1; i < 127; ++i)
+	for (int i = 1; i < MAP_WIDTH-1; ++i)
 	{
-		for (int j = 1; j < 127; ++j) 
+		for (int j = 1; j < MAP_HEIGHT-1; ++j) 
 		{
 			if (sin(i*j) > 0.95) 
 				state->tilemap->pattern[i][j] = 12;
@@ -129,8 +134,8 @@ static void game_reset(EngineContext* context, E03_GameState* state)
 
 	load_tileset(context, state);
 	create_pattern(state);
-	state->tilemap->pos.x = 0;
-	state->tilemap->pos.y = 0;
+	state->tilemap->pos.x = -2.5f;
+	state->tilemap->pos.y = -2.5f;
 
 	{
 		state->player = entity_create(state);
@@ -174,23 +179,30 @@ static void game_update(EngineContext* context, E03_GameState* state)
 
 static void render_tileset(EngineContext* context, E03_GameState* state)
 {
-	for (int i = 0; i < 128; ++i)
-	{
-		for (int j = 0; j < 128; ++j)
-		{
-			vec2f position;
-			position.x = i;
-			position.y = j;
+	vec2f p_mouse_world = itu_lib_context_point_screen_to_global(context, context->mouse_pos);
+	
 
+	for (int i = 0; i < MAP_WIDTH; ++i)
+	{
+		for (int j = 0; j < MAP_HEIGHT; ++j)
+		{
 			Transform2D transform;
-			// transform.position.x = i;
-			// transform.position.y = j;
-			transform.position = position;
+			transform.position.x = state->tilemap->pos.x + i;
+			transform.position.y = state->tilemap->pos.y + j;
 			transform.scale = VEC2F_ONE;
 			transform.rotation = 0.0f;
+			if (i + state->tilemap->pos.x + 0.5f == (int) p_mouse_world.x && j + state->tilemap->pos.y + 0.5f == (int) p_mouse_world.y)
+				transform.position.x += 0.2f;	
+
 			if(DEBUG_render_textures)
 				itu_lib_sprite_render(
 					context, 
+					&state->tilemap->tileset[state->tilemap->pattern[i][j]],
+					&transform
+				);
+			if(DEBUG_render_outlines)
+				itu_lib_sprite_render_debug(
+					context,
 					&state->tilemap->tileset[state->tilemap->pattern[i][j]],
 					&transform
 				);
@@ -290,8 +302,10 @@ int main(void)
 		
 #ifdef ENABLE_DIAGNOSTICS
 		{
+			SDL_SetRenderScale(context.renderer, 1.5f, 1.5f); // Render at 1.5x scale
+
 			SDL_SetRenderDrawColor(context.renderer, 0x0, 0x00, 0x00, 0xCC);
-			SDL_FRect rect = SDL_FRect{ 5, 5, 225, 55 };
+			SDL_FRect rect = SDL_FRect{ 5, 5, 255, 85 };
 			SDL_RenderFillRect(context.renderer, &rect);
 
 			SDL_SetRenderDrawColor(context.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -300,11 +314,13 @@ int main(void)
 			SDL_RenderDebugTextFormat(context.renderer, 10, 30, "[TAB] reset ");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 40, "[F1]  render textures   %s", DEBUG_render_textures   ? " ON" : "OFF");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 50, "[F2]  render outlines   %s", DEBUG_render_outlines   ? " ON" : "OFF");
-			SDL_RenderDebugTextFormat(context.renderer, 10, 60, "Mouse on screen: %6.2f, %6.2f", context.mouse_pos.x, context.mouse_pos.y);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 60, "Mouse on screen: %4.2f, %4.2f", context.mouse_pos.x, context.mouse_pos.y);
 			vec2f p_mouse_world = itu_lib_context_point_screen_to_global(&context, context.mouse_pos);
-			SDL_RenderDebugTextFormat(context.renderer, 10, 70, "Mouse in world: %6.2f, %6.2f", p_mouse_world.x, p_mouse_world.y);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 70, "Mouse in world: %4.2f, %4.2f", p_mouse_world.x, p_mouse_world.y);
 			vec2f p_mouse_camera = itu_lib_context_point_screen_to_window(&context, context.mouse_pos);
-			SDL_RenderDebugTextFormat(context.renderer, 10, 80, "Mouse in camera: %6.2f, %6.2f", p_mouse_camera.x, p_mouse_camera.y);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 80, "Mouse in camera: %4.2f, %4.2f", p_mouse_camera.x, p_mouse_camera.y);
+
+			SDL_SetRenderScale(context.renderer, 1.0f, 1.0f); // Reset render back to 1x
 		}
 #endif
 		// render
