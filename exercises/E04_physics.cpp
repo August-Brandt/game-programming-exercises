@@ -1,3 +1,8 @@
+#include "box2d/box2d.h"
+#include "box2d/collision.h"
+#include "box2d/id.h"
+#include "box2d/math_functions.h"
+#include "box2d/types.h"
 #define ENABLE_DIAGNOSTICS
 
 #include <itu_engine.hpp>
@@ -5,11 +10,9 @@
 
 const int ENTITY_COUNT = 1024;
 
-const int COLLISION_FILTER_PLAYER         = 0b00001;
-const int COLLISION_FILTER_GROUND         = 0b00010;
-const int COLLISION_FILTER_CLUTTER        = 0b00100;
-const int COLLISION_FILTER_CLUTTER_SENSOR = 0b01000;
-const float GRAVITY      = -9.8f;
+const int COLLISION_FILTER_BALL         = 0b00001;
+const int COLLISION_FILTER_BORDER         = 0b00010;
+const float GRAVITY      = 0.0f;
 bool DEBUG_render_textures = true;
 bool DEBUG_render_outlines = false;
 bool DEBUG_physics = true;
@@ -52,7 +55,7 @@ struct E04_PlayerData
 	float t_h; // jump duration (for current jump)
 };
 
-static float player_dynamic_gravity = -9.8f;
+static float player_dynamic_gravity = 0.0f;
 static float player_dynamic_jump_impulse = 3;
 static float player_dynamic_mov_force = 10;
 
@@ -156,6 +159,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 	if(b2World_IsValid(state->world_id))
 		b2DestroyWorld(state->world_id);
 	b2WorldDef def_world = b2DefaultWorldDef();
+  // def_world.restitutionThreshold = 100.0f;
 	def_world.gravity.y = DEBUG_simulation_type_current == SIMULATION_TYPE_KINEMATIC
 		? GRAVITY
 		: player_dynamic_gravity;
@@ -172,7 +176,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 		itu_lib_sprite_init(
 			&entity->sprite,
 			state->atlas,
-			itu_lib_sprite_get_source_rect(0, 9, 16, 16)
+			itu_lib_sprite_get_source_rect(0, 7, 16, 16)
 		);
 		entity->sprite.pivot.y = 0;
 
@@ -188,17 +192,18 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 
 			b2ShapeDef shape_def = b2DefaultShapeDef();
 			shape_def.density = 1; // NOTE: default density of 0 will mess with collisions and gravity!
-			shape_def.enableSensorEvents  = true;
-			shape_def.enableContactEvents = true;
-			shape_def.enableHitEvents     = true;
-			shape_def.filter.categoryBits = COLLISION_FILTER_PLAYER;
-			shape_def.filter.maskBits = COLLISION_FILTER_GROUND | COLLISION_FILTER_CLUTTER_SENSOR;
-			b2Polygon polygon = b2MakeOffsetBox(size.x / 2, size.y / 2, value_cast(b2Vec2, offset), b2MakeRot(entity->transform.rotation));
+			// shape_def.enableContactEvents = true;
+			// shape_def.enableHitEvents     = true;
+			shape_def.filter.categoryBits = COLLISION_FILTER_BALL;
+			shape_def.filter.maskBits = COLLISION_FILTER_BORDER | COLLISION_FILTER_BALL;
+
+			// b2Polygon polygon = b2MakeOffsetBox(size.x / 2, size.y / 2, value_cast(b2Vec2, offset), b2MakeRot(entity->transform.rotation));
 			b2Circle circle;
 			circle.radius = 0.5f;
 			circle.center = value_cast(b2Vec2, offset);
 			entity->body_id = b2CreateBody(state->world_id, &body_def);
-			b2CreateCircleShape(entity->body_id, &shape_def, &circle);
+			b2ShapeId shapeId = b2CreateCircleShape(entity->body_id, &shape_def, &circle);
+      b2Shape_SetRestitution(shapeId, 2.0f);
 		}
 	}
 
@@ -206,15 +211,25 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 	{
 		b2BodyDef body_def = b2DefaultBodyDef();
 		body_def.type = b2_staticBody;
-		body_def.position = b2Vec2{ 0, -3 };
+		body_def.position = b2Vec2{ 0, 0 };
 		b2ShapeDef shape_def = b2DefaultShapeDef();
 
-		shape_def.filter.categoryBits = COLLISION_FILTER_GROUND;
-		b2Polygon polygon = b2MakeBox(32.0f, 1.0f);
+
+		shape_def.filter.categoryBits = COLLISION_FILTER_BORDER;
+
+    // b2Polygon polygon_d = b2MakeBox(32.0f, 1.0f);
+		b2Polygon polygon_d = b2MakeOffsetBox(32.0f, 1.0f, b2Vec2{0.0f, -16.0f}, b2MakeRot(0.0f));
+    b2Polygon polygon_l = b2MakeOffsetBox(1.0f, 16.0f, b2Vec2{-32.0f, 0.0f}, b2MakeRot(0.0f));
+    b2Polygon polygon_r = b2MakeOffsetBox(1.0f, 16.0f, b2Vec2{32.0f, 0.0f}, b2MakeRot(0.0f));
+    b2Polygon polygon_u = b2MakeOffsetBox(32.0f, 1.0f, b2Vec2{0.0f, 16.0f}, b2MakeRot(0.0f));
 
 		E04_Entity* entity = entity_create(state);
 		entity->body_id = b2CreateBody(state->world_id, &body_def);
-		b2CreatePolygonShape(entity->body_id, &shape_def, &polygon);
+
+		b2CreatePolygonShape(entity->body_id, &shape_def, &polygon_d);
+		b2CreatePolygonShape(entity->body_id, &shape_def, &polygon_l);
+		b2CreatePolygonShape(entity->body_id, &shape_def, &polygon_r);
+		b2CreatePolygonShape(entity->body_id, &shape_def, &polygon_u);
 	}
 
 #if 1
@@ -222,23 +237,15 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 	{
 		b2BodyDef body_def = b2DefaultBodyDef();
 		body_def.type = b2_dynamicBody;
-		body_def.fixedRotation = false;
+		// body_def.fixedRotation = true;
 
 		// collider shape (to enable collisions with the ground)
 		b2ShapeDef shape_def = b2DefaultShapeDef();
 		shape_def.density = 1;
-		shape_def.filter.categoryBits = COLLISION_FILTER_CLUTTER;
+		shape_def.filter.categoryBits = COLLISION_FILTER_BALL;
+		shape_def.filter.maskBits     = COLLISION_FILTER_BALL | COLLISION_FILTER_BORDER;
 
-		// sensor shape (to enable interaction with the player)
-		b2ShapeDef shape_def_clutter = b2DefaultShapeDef();
-		shape_def_clutter.density = 0;
-		shape_def_clutter.isSensor = true;
-		shape_def_clutter.enableSensorEvents = true;
-		shape_def_clutter.filter.categoryBits = COLLISION_FILTER_CLUTTER_SENSOR;
-		shape_def_clutter.filter.maskBits     = COLLISION_FILTER_PLAYER;
-
-		b2Polygon polygon_box = b2MakeBox(0.5f, 0.5f);
-		for(int i = 0; i < 32; ++i)
+		for(int i = 0; i < 1; ++i)
 		{
 			E04_Entity* entity = entity_create(state);
 			entity->transform.scale = VEC2F_ONE;
@@ -246,16 +253,18 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 			vec2f size = itu_lib_sprite_get_world_size(context, &entity->sprite, &entity->transform);
 			vec2f offset = -mul_element_wise(size, entity->sprite.pivot - vec2f{ 0.5f, 0.5f });
 
-			body_def.position = b2Vec2{ 3.0f + (i % 4) * 1.5f, (i / 4) * 3.0f };
-			body_def.rotation = b2MakeRot(SDL_randf() * TAU);
-			body_def.angularVelocity = 1;
+			// body_def.position = b2Vec2{ 3.0f + (i % 4) * 1.5f, (i / 4) * 3.0f };
+      body_def.position = b2Vec2{ 3.0f , 3.0f };
+      b2Circle circle;
+      circle.radius = 0.5f;
+			circle.center = value_cast(b2Vec2, offset);
 			entity->body_id = b2CreateBody(state->world_id, &body_def);
-			b2CreatePolygonShape(entity->body_id, &shape_def, &polygon_box);
-			b2CreatePolygonShape(entity->body_id, &shape_def_clutter, &polygon_box);
+			b2ShapeId shapeId = b2CreateCircleShape(entity->body_id, &shape_def, &circle);
+      b2Shape_SetRestitution(shapeId, 1.0f);
 			itu_lib_sprite_init(
 				&entity->sprite,
 				state->atlas,
-				itu_lib_sprite_get_source_rect(3, 5, 16, 16)
+				itu_lib_sprite_get_source_rect(0, 7, 16, 16)
 			);
 		}
 	}
@@ -284,15 +293,14 @@ static void game_update(EngineContext* context, E04_GameState* state)
 			{
 				vec2f force = VEC2F_ZERO;
 				vec2f impulse = VEC2F_ZERO;
-				if(data->grounded)
-				{
-					if(context->btn_isdown[BTN_TYPE_LEFT])
-						force.x = -player_dynamic_mov_force;
-					if(context->btn_isdown[BTN_TYPE_RIGHT])
-						force.x = player_dynamic_mov_force;
-					if(context->btn_isdown[BTN_TYPE_SPACE])
-						impulse.y = player_dynamic_jump_impulse;
-				}
+        if(context->btn_isdown[BTN_TYPE_LEFT])
+          force.x = -player_dynamic_mov_force;
+        if(context->btn_isdown[BTN_TYPE_RIGHT])
+          force.x = player_dynamic_mov_force;
+        if(context->btn_isdown[BTN_TYPE_UP])
+          force.y = player_dynamic_mov_force;
+        if(context->btn_isdown[BTN_TYPE_DOWN])
+          force.y = -player_dynamic_mov_force;
 
 				b2Body_ApplyForceToCenter(player->body_id, value_cast(b2Vec2, force), true);
 				b2Body_ApplyLinearImpulseToCenter(player->body_id, value_cast(b2Vec2, impulse), true);
@@ -301,7 +309,7 @@ static void game_update(EngineContext* context, E04_GameState* state)
 			case SIMULATION_TYPE_KINEMATIC:
 			{
 				vec2f velocity = player->velocity;
-				if(data->grounded)
+				if(!data->grounded)
 				{
 					if(context->btn_isdown[BTN_TYPE_LEFT])
 						velocity.x = -data->v_x;
@@ -372,28 +380,28 @@ static void game_update(EngineContext* context, E04_GameState* state)
 		{
 			b2Filter filter_a = b2Shape_GetFilter(contact_data[i].shapeIdA);
 			b2Filter filter_b = b2Shape_GetFilter(contact_data[i].shapeIdB);
-			if(filter_a.categoryBits & COLLISION_FILTER_GROUND)
+			if(filter_a.categoryBits & COLLISION_FILTER_BORDER)
 				data->grounded = true;
 		}
 	}
 
 	// world
-	b2SensorEvents worl_sensor_events = b2World_GetSensorEvents(state->world_id);
-	for(int i = 0; i < worl_sensor_events.beginCount; ++i)
-	{
-		b2SensorBeginTouchEvent* sensor_event = &worl_sensor_events.beginEvents[i];
-		b2Vec2 direction = b2Vec2 { 0, 1 };
-
-		float vel_sq = length_sq(state->player->velocity);
-		if(SDL_fabsf(vel_sq) < FLOAT_EPSILON)
-			// apply impulse only if the player is moving
-			// (boxes falling on player when it's not moving feel unnatural)
-			continue;
-
-		float amount = SDL_clamp(length_sq(state->player->velocity) * 2, 5, 15);
-		float spread = state->player_data.grounded ? PI / 4 : TAU;
-		clutter_apply_impulse_random(sensor_event->sensorShapeId, direction, amount, spread);
-	}
+	// b2SensorEvents worl_sensor_events = b2World_GetSensorEvents(state->world_id);
+	// for(int i = 0; i < worl_sensor_events.beginCount; ++i)
+	// {
+	// 	b2SensorBeginTouchEvent* sensor_event = &worl_sensor_events.beginEvents[i];
+	// 	b2Vec2 direction = b2Vec2 { 0, 1 };
+	//
+	// 	float vel_sq = length_sq(state->player->velocity);
+	// 	if(SDL_fabsf(vel_sq) < FLOAT_EPSILON)
+	// 		// apply impulse only if the player is moving
+	// 		// (boxes falling on player when it's not moving feel unnatural)
+	// 		continue;
+	//
+	// 	float amount = SDL_clamp(length_sq(state->player->velocity) * 2, 5, 15);
+	// 	float spread = state->player_data.grounded ? PI / 4 : TAU;
+	// 	clutter_apply_impulse_random(sensor_event->sensorShapeId, direction, amount, spread);
+	// }
 
 	{
 		const float zoom_speed = 1;
