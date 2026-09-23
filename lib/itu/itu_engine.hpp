@@ -18,6 +18,8 @@
 #include <imgui/imgui_impl_sdlgpu3.h>
 #include <imgui/imgui_impl_sdlgpu3_shaders.h>
 
+#include <box2d/box2d.h>
+
 // low level libraries (no engine or memory allocation involved)
 #include <itu_common.hpp>
 #include <itu_lib_render_screen.hpp>
@@ -26,6 +28,7 @@
 
 // context libraries (slightly higher-level functionality)
 #include <itu_lib_context.hpp>
+#include <utils/itu_utils_box2d.hpp>
 #include <itu_lib_render2d.hpp>
 #include <itu_lib_imgui.hpp>
 
@@ -36,6 +39,7 @@
 //       easy to silence this. Just define THE `IN_IDE` preprocessor symbol IN THE TOOL ONLY!
 #ifndef IN_IDE
 	#include <itu_lib_context.cpp>
+	#include <utils/itu_utils_box2d.cpp>
 	#include <itu_lib_render2d.cpp>
 	#include <itu_lib_imgui.cpp>
 #endif // IN_IDE
