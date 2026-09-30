@@ -1,4 +1,9 @@
+#include "SDL3/SDL_stdinc.h"
+#include "SDL3/SDL_time.h"
+#include "SDL3/SDL_timer.h"
+#include "itu_lib_context.hpp"
 #include <itu_engine.hpp>
+#include <sys/types.h>
 
 const char* const PATH_MUSIC[] =
 {
@@ -46,7 +51,13 @@ struct GameState
 
     Player player;
     Npc npcs[3];
+    float bg_gain;
+    float master_gain;
+    float speed;
 };
+
+u_short walk_frames = 0;
+SDL_Time start_anim = 0;
 
 void game_init  (EngineContext* context, GameState* state);
 void game_reset (EngineContext* context, GameState* state);
@@ -65,6 +76,9 @@ int main(void)
     config.texture_pixels_per_unit = 96;
     EngineContext context = { 0 };
     GameState     state   = { 0 };
+    state.master_gain = 0.15f;
+    state.bg_gain = 1.0f;
+    state.speed = 2.0f;
 
     itu_lib_context_init(&config, &context);
 
@@ -139,7 +153,7 @@ void game_init(EngineContext* context, GameState* state)
     SDL_VALIDATE(state->track_main_bg = MIX_CreateTrack(state->mixer));
 
     SDL_VALIDATE(MIX_SetTrackAudio(state->track_main_bg, state->audio_music[0]));
-    SDL_VALIDATE(MIX_SetTrackGain(state->track_main_bg, 0.15f));
+    SDL_VALIDATE(MIX_SetTrackGain(state->track_main_bg, state->bg_gain*state->master_gain));
     SDL_VALIDATE(MIX_PlayTrack(state->track_main_bg, 0));
 }
 
@@ -150,7 +164,7 @@ void game_reset(EngineContext* context, GameState* state)
 
     state->player.transform.scale = VEC2F_ONE;
     state->player.transform.position = { 2, -2 };
-    itu_lib_sprite_init(&state->player.sprite, state->tex_atlas_player, { 0, 0, 96, 128 });
+    itu_lib_sprite_init(&state->player.sprite, state->tex_atlas_player, { 0,0, 96, 128 });
 
     for(int i = 0; i < 3; ++i)
     {
@@ -167,6 +181,8 @@ void game_update(EngineContext* context, GameState* state)
 {
     update_player(context, state);
     update_npcs  (context, state);
+    MIX_SetTrackGain(state->track_main_bg, state->bg_gain*state->master_gain);
+    
 }
 
 void game_render(EngineContext* context, GameState* state)
@@ -190,6 +206,8 @@ void game_debug(EngineContext* context, GameState* state)
     {
         if(ImGui::Combo("Music Track", &state->music_current, PATH_MUSIC, array_size(PATH_MUSIC)))
             SDL_VALIDATE(MIX_SetTrackAudio(state->track_main_bg, state->audio_music[state->music_current]));
+            ImGui::DragFloat("Master Vol", &state->master_gain, 0.001f, 0.0f, 1.0f);
+            ImGui::DragFloat("Bg Vol", &state->bg_gain, 0.001f, 0.0f, 1.0f);
     }
 
 
@@ -199,6 +217,7 @@ void game_debug(EngineContext* context, GameState* state)
         ImGui::DragFloat2("Pos", &state->player.transform.position.x);
         ImGui::DragFloat ("Rot", &state->player.transform.rotation);
         ImGui::DragFloat2("Scale", &state->player.transform.scale.x);
+        ImGui::DragFloat ("Speed", &state->speed, 1.0f, -5.0f, 5.0f);
         ImGui::PopID();
     }
 
@@ -227,15 +246,42 @@ void game_debug(EngineContext* context, GameState* state)
 
 void update_player(EngineContext* context, GameState* state)
 {
-    const float SPEED = 2.0f;
     float dir = 0.0f;
-    if(context->btn_isdown[BTN_TYPE_LEFT])  dir -= 1.0f;
-    if(context->btn_isdown[BTN_TYPE_RIGHT]) dir += 1.0f;
+    bool is_idle = true;
+    state->player.sprite.flip_horizontal = false;
+
+    if(context->btn_isdown[BTN_TYPE_LEFT]) {
+        if (context->btn_isjustpressed[BTN_TYPE_LEFT]) {
+            start_anim = SDL_GetTicksNS();
+        }
+        state->player.sprite.flip_horizontal = true;
+        dir -= 1.0f;
+        is_idle = false;
+    }
+
+    if(context->btn_isdown[BTN_TYPE_RIGHT]) {
+        if (context->btn_isjustpressed[BTN_TYPE_RIGHT]) {
+            start_anim = SDL_GetTicksNS();
+        }
+        
+        dir += 1.0f;
+        is_idle = false;
+    }
+
+    if(is_idle) {
+        itu_lib_sprite_init(&state->player.sprite, state->tex_atlas_player, { 0,0, 96, 128 });
+    }
 
     state->player.direction = dir;
-    state->player.velocity = dir * SPEED;
+    state->player.velocity = dir * state->speed;
 
     state->player.transform.position.x += state->player.velocity * context->delta;
+
+    if (abs(state->player.velocity) > .001) {
+        SDL_Time now = SDL_GetTicksNS();
+        int frame = long(floor((NS_TO_SECONDS(now)-NS_TO_SECONDS(start_anim)) * 16*abs(state->player.velocity))) % 8;
+        itu_lib_sprite_init(&state->player.sprite, state->tex_atlas_player, { frame*96.0f, 4*128.0f, 96, 128 });
+    }
 }
 
 void update_npcs(EngineContext* context, GameState* state)
