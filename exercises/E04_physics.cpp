@@ -178,7 +178,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 			state->atlas,
 			itu_lib_sprite_get_source_rect(0, 7, 16, 16)
 		);
-		entity->sprite.pivot.y = 0;
+		// entity->sprite.pivot.y = 0;
 
 		// box2d body, shape and polygon
 		{
@@ -187,7 +187,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 
 			b2BodyDef body_def = b2DefaultBodyDef();
 			body_def.type = b2_dynamicBody;
-			body_def.fixedRotation = true;
+			body_def.fixedRotation = false;
 			body_def.position = b2Vec2{ 0, 0 };
 
 			b2ShapeDef shape_def = b2DefaultShapeDef();
@@ -203,7 +203,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 			circle.center = value_cast(b2Vec2, offset);
 			entity->body_id = b2CreateBody(state->world_id, &body_def);
 			b2ShapeId shapeId = b2CreateCircleShape(entity->body_id, &shape_def, &circle);
-      b2Shape_SetRestitution(shapeId, 2.0f);
+      b2Shape_SetRestitution(shapeId, 1.0f);
 		}
 	}
 
@@ -245,7 +245,7 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 		shape_def.filter.categoryBits = COLLISION_FILTER_BALL;
 		shape_def.filter.maskBits     = COLLISION_FILTER_BALL | COLLISION_FILTER_BORDER;
 
-		for(int i = 0; i < 1; ++i)
+		for(int i = 0; i < 10; ++i)
 		{
 			E04_Entity* entity = entity_create(state);
 			entity->transform.scale = VEC2F_ONE;
@@ -253,8 +253,8 @@ static void game_reset(EngineContext* context, E04_GameState* state)
 			vec2f size = itu_lib_sprite_get_world_size(context, &entity->sprite, &entity->transform);
 			vec2f offset = -mul_element_wise(size, entity->sprite.pivot - vec2f{ 0.5f, 0.5f });
 
-			// body_def.position = b2Vec2{ 3.0f + (i % 4) * 1.5f, (i / 4) * 3.0f };
-      body_def.position = b2Vec2{ 3.0f , 3.0f };
+			body_def.position = b2Vec2{ 3.0f + (i % 4) * 1.5f, (i / 4) * 3.0f };
+    //   body_def.position = b2Vec2{ 3.0f , 3.0f };
       b2Circle circle;
       circle.radius = 0.5f;
 			circle.center = value_cast(b2Vec2, offset);
@@ -353,7 +353,7 @@ static void game_update(EngineContext* context, E04_GameState* state)
 		b2Rot  physics_rot = b2Body_GetRotation(entity->body_id);
 		entity->velocity = value_cast(vec2f, physics_vel);
 		entity->transform.position = value_cast(vec2f, physics_pos);
-		entity->transform.rotation = b2Rot_GetAngle(physics_rot);
+		// entity->transform.rotation = b2Rot_GetAngle(physics_rot);
 	}
 
 	// player
@@ -453,12 +453,12 @@ int main(void)
 	E04_GameState  state   = { 0 };
 
 	config.application_name = "E04 - Physics";
-	config.window_w = 800;
-	config.window_h = 600;
+	config.window_w = 1400;
+	config.window_h = 900;
 	config.step_per_second_fixed = 60;
 	config.step_per_second_fluid = 60;
 	config.texture_pixels_per_unit = 16;
-	config.camera_pixel_per_unit = 32;
+	config.camera_pixel_per_unit = 48;
 
 	itu_lib_context_init(&config, &context);
 	itu_lib_imgui_setup(&context, true);
