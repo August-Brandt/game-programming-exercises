@@ -11,6 +11,8 @@ set(BUILD_SHARED_LIBS OFF)
 
 # 3rd party libraries
 add_subdirectory(lib/SDL)
+add_subdirectory(lib/SDL_mixer)
+add_subdirectory(lib/SDL_ttf)
 add_subdirectory(lib/imgui)
 add_subdirectory(lib/box2d)
 

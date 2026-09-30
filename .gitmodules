@@ -2,3 +2,9 @@
 	path = lib/SDL
 	url = https://github.com/libsdl-org/SDL.git
 	branch = release-3.4.14
+[submodule "lib/SDL_mixer"]
+	path = lib/SDL_mixer
+	url = https://github.com/libsdl-org/SDL_mixer.git
+[submodule "lib/SDL_ttf"]
+	path = lib/SDL_ttf
+	url = https://github.com/libsdl-org/SDL_ttf.git
